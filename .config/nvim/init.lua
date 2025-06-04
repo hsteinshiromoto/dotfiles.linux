@@ -14,6 +14,9 @@ if not is_remote then
 	require("config.lazy")
 	require("config.icons")
 
+	-- Global diagnostic configuration (Neovim ≥ 0.11)
+	require("config.diagnostics")
+
 	vim.api.nvim_create_autocmd("User", {
 		pattern = "VeryLazy",
 		callback = function()
