@@ -26,8 +26,10 @@ function M.setup(_, opts)
 		return
 	end
 
-	-- Setup mason-lspconfig for server installation
-	mason_lspconfig.setup({ ensure_installed = vim.tbl_keys(servers) })
+	-- Setup mason-lspconfig for server installation if available (v2 returns a table)
+	if type(mason_lspconfig.setup) == "function" then
+		mason_lspconfig.setup({ ensure_installed = vim.tbl_keys(servers) })
+	end
 
 	-- Manual setup of each server without relying on setup_handlers
 	local lspconfig = require("lspconfig")
@@ -53,8 +55,10 @@ function M.setup(_, opts)
 	end
 
 	-- Handle automatically installed servers from mason-lspconfig
-	-- Get all installed servers from mason-lspconfig
-	local installed_servers = mason_lspconfig.get_installed_servers()
+	local installed_servers = {}
+	if mason_lspconfig and type(mason_lspconfig.get_installed_servers) == "function" then
+		installed_servers = mason_lspconfig.get_installed_servers()
+	end
 	for _, server_name in ipairs(installed_servers) do
 		-- Skip servers that are already configured
 		if servers[server_name] then

@@ -22,9 +22,8 @@ return {
 			"mypy",
 			"pydocstyle",
 			"pyright",
-			-- "ruff",
+			"ruff", -- Ruff language server for Python
 			"stylua",
-			-- "texlab",
 			"yaml-language-server",
 		},
 		config = function(plugin)
@@ -77,8 +76,38 @@ return {
 					},
 				},
 				dockerls = {},
+				pyright = {
+					settings = {
+						python = {
+							analysis = {
+								useLibraryCodeForTypes = true,
+								autoSearchPaths = true,
+								diagnosticMode = "openFilesOnly", -- reduce noise, Ruff handles linting
+							},
+						},
+						pyright = {
+							disableOrganizeImports = true, -- Ruff will organize imports
+						},
+					},
+				},
+				ruff = {
+					init_options = {
+						settings = {
+							-- Extra Ruff args can be provided here, e.g. { "--select", "ALL" }
+							args = {},
+						},
+					},
+				},
 			},
-			setup = {},
+			setup = {
+				ruff = function(_, opts)
+					-- Disable hover to avoid duplicate information with Pyright
+					opts.on_attach = function(client)
+						client.server_capabilities.hoverProvider = false
+					end
+					return false -- Continue with default setup
+				end,
+			},
 		},
 		config = function(plugin, opts)
 			require("plugins.lsp.servers").setup(plugin, opts)
@@ -93,9 +122,7 @@ return {
 			nls.setup({
 				sources = {
 					nls.builtins.formatting.stylua,
-					nls.builtins.formatting.black,
 					nls.builtins.diagnostics.mypy,
-					-- nls.builtins.diagnostics.ruff,
 				},
 			})
 		end,
