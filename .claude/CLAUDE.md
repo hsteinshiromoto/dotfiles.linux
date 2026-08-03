@@ -75,7 +75,8 @@ Never perform any of the following tasks without human approval:
 
 ## Communication Style
 
-- Keep investigation and verification findings concise — use a table or bullet summary; avoid verbose multi-paragraph prose reports.
+Keep investigation and verification findings concise — use a table or bullet summary; avoid verbose multi-paragraph prose reports.
+You MUST USE the `ste_writing` skill, when writing prose (docs, READMEs, PR descriptions, error messages, release notes, comments). DO NOT USE when writing code.
 
 ## Finishing up
 
