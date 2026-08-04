@@ -9,10 +9,17 @@ syntax on
 filetype plugin indent on
 
 " ---
-" Configuration: Gruvbox Theme
+" Configuration: Tokyo Night Theme
+"
+" References:
+" 	[1] https://github.com/ghifarit53/tokyonight-vim
 " ---
 :set bg=dark
-autocmd vimenter * ++nested colorscheme gruvbox
+set termguicolors
+let g:tokyonight_style = 'night'
+let g:tokyonight_enable_italic = 1
+let g:lightline = {'colorscheme': 'tokyonight'}
+autocmd vimenter * ++nested colorscheme tokyonight
 
 " ---
 " Configuration: Code-minimap
@@ -30,6 +37,7 @@ let g:minimap_auto_start_win_enter = 1
 call plug#begin()
 
 Plug 'junegunn/fzf'
+Plug 'ghifarit53/tokyonight-vim'
 Plug 'itchyny/lightline.vim'
 Plug 'tpope/vim-fugitive'
 Plug 'rbong/vim-flog'

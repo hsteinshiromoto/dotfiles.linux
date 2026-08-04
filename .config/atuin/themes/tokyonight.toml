@@ -1,0 +1,20 @@
+# Tokyo Night theme for atuin.
+#
+# atuin only supports the fixed set of CSS/SVG named colors from the `palette`
+# crate (https://ogeon.github.io/docs/palette/master/palette/named/index.html),
+# not arbitrary hex codes, so this maps each Tokyo Night role to its closest
+# named color:
+#   Base        #c0caf5 (foreground)   -> lightsteelblue
+#   Annotation  #565f89 (comments)     -> slategray
+#   AlertInfo   #7aa2f7 (blue)         -> cornflowerblue
+#   Guidance    #9ece6a (green)        -> yellowgreen
+#   Important   #bb9af7 (purple)       -> mediumpurple
+#   AlertWarn   #e0af68 (yellow)       -> sandybrown
+#   AlertError  #f7768e (red)          -> lightcoral
+Base = "lightsteelblue"
+Annotation = "slategray"
+AlertInfo = "cornflowerblue"
+Guidance = "yellowgreen"
+Important = "mediumpurple"
+AlertWarn = "sandybrown"
+AlertError = "lightcoral"
