@@ -255,14 +255,15 @@ The report is the only file you may write.
 ${READ_ONLY}`;
 
 phase("Triage");
-if (!args || !args.ticket) return { status: "bad_args", error: "args.ticket is required, e.g. {ticket: \"PROJ-123\"}" };
-const ticket = String(args.ticket).trim().toUpperCase();
+const input = typeof args === "string" ? JSON.parse(args) : args;
+if (!input || !input.ticket) return { status: "bad_args", error: "args.ticket is required, e.g. {ticket: \"PROJ-123\"}" };
+const ticket = String(input.ticket).trim().toUpperCase();
 const triage = await agent(triagePrompt(ticket), { label: "triage", phase: "Triage", schema: triageSchema, effort: "medium" });
 if (!triage) return { status: "triage_failed", ticket };
 if (!triage.fetched) return { status: "ticket_unavailable", ticket, error: triage.error };
 
 phase("Resolve repo");
-const repo = args.repo || triage.repo;
+const repo = input.repo || triage.repo;
 if (!repo) return { status: "needs_repo", ticket, triage };
 const prep = await agent(prepPrompt(repo), { label: "repo-prep", phase: "Resolve repo", schema: prepSchema, effort: "low" });
 if (prep && prep.reachable === false) return { status: "repo_unreachable", ticket, repo, note: prep.note };
