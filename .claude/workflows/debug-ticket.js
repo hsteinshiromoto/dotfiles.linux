@@ -1,13 +1,11 @@
 export const meta = {
   name: "debug-ticket",
-  description: "Root-cause a JIRA bug against its GitLab repo (read-only) and write a local markdown report.",
-  whenToUse: "Use this when a JIRA bug ticket needs a root cause found in its GitLab repository. Takes args {ticket: \"PROJ-123\" (required), repo: \"group/project or full GitLab URL\" (optional override)}. The workflow reads JIRA and GitLab only. It never pushes, comments, or transitions anything. A result status of needs_repo means the ticket did not identify a repository: re-run with args.repo set.",
+  description: "Triage a JIRA bug, query CloudWatch logs (read-only), and write a local markdown report.",
+  whenToUse: "Use this when a JIRA bug ticket needs its CloudWatch log evidence gathered. Takes args {ticket: \"PROJ-123\" (required)}. The workflow stops after the CloudWatch step: it does not resolve the GitLab repository and does not investigate code. It reads JIRA and AWS logs only. It never pushes, comments, or transitions anything.",
   phases: [
     { title: "Triage", detail: "Fetch the JIRA ticket via Atlassian MCP and extract structured facts." },
-    { title: "Resolve repo", detail: "Determine the GitLab project; shallow-clone it to a scratch dir." },
-    { title: "Investigate", detail: "Three parallel lenses: recent changes, code path, CI pipelines." },
-    { title: "Verify", detail: "One skeptic per candidate tries to refute it." },
-    { title: "Report", detail: "Write reports/<TICKET>-root-cause.md with root cause and suggested fix." }
+    { title: "CloudWatch", detail: "Query AWS CloudWatch logs for error patterns near the report date." },
+    { title: "Report", detail: "Write reports/<TICKET>-root-cause.md from the ticket facts and the log evidence." }
   ]
 };
 
@@ -51,6 +49,32 @@ const prepSchema = {
     note: { type: "string", description: "auth or clone error, or anything the investigators should know" }
   },
   required: ["reachable", "cloned"]
+};
+
+const cloudwatchSchema = {
+  type: "object",
+  properties: {
+    queried: { type: "boolean", description: "true when at least one log group was queried" },
+    error: { type: "string", description: "reason if querying failed or was skipped" },
+    logGroups: { type: "array", items: { type: "string" }, description: "log group names queried" },
+    errorPatterns: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          pattern: { type: "string", description: "error pattern or message substring matched" },
+          count: { type: "number", description: "number of matching log events" },
+          firstSeen: { type: "string", description: "ISO timestamp of earliest match" },
+          lastSeen: { type: "string", description: "ISO timestamp of latest match" },
+          sampleMessage: { type: "string", description: "one representative log line, verbatim" }
+        },
+        required: ["pattern", "count"]
+      }
+    },
+    timeWindow: { type: "string", description: "ISO time range queried, e.g. 2024-03-01T00:00:00Z / 2024-03-03T00:00:00Z" },
+    notes: { type: "string", description: "dead ends, missing log groups, or access errors worth recording" }
+  },
+  required: ["queried"]
 };
 
 const lensSchema = {
@@ -127,18 +151,115 @@ ${READ_ONLY}`;
 const prepPrompt = (repo) => `
 Confirm the GitLab project "${repo}" is readable, then clone it for local analysis.
 
-1. If "${repo}" looks like a full URL, take the hostname and run: glab auth status --hostname <host>
-   Stop if authentication fails. Return reachable=false and put the auth error in note.
-2. Run: glab repo view -R ${repo}
-   This confirms the project is readable and gives the default branch.
-3. Shallow-clone into your own scratchpad directory: git clone --depth 200 <clone-url> <scratchpad>/repo
+1. Derive the group/project path from the input.
+   - If "${repo}" is a full URL (starts with http or git@), strip the host and .git suffix to get the path.
+     Example: https://gitlab.com/foo/bar/baz.git → foo/bar/baz
+   - Otherwise use "${repo}" as-is.
+2. URL-encode the path for the API: replace each "/" with "%2F".
+   Example: foo/bar/baz → foo%2Fbar%2Fbaz
+3. Check access and get metadata using the API:
+     glab api "projects/<encoded-path>"
+   Read the JSON response. Extract:
+   - id (project ID)
+   - default_branch
+   - http_url_to_repo (use this as the clone URL)
+   If the command fails or returns an error, return reachable=false and put the error in note. Stop here.
+4. Shallow-clone into your own scratchpad directory:
+     git clone --depth 200 <http_url_to_repo> <scratchpad>/repo
    Return the absolute path in clonePath and set cloned=true.
-4. If the clone fails but the project was readable, return reachable=true and cloned=false. Say why in note. The investigation then runs remotely.
+   Set defaultBranch from the API response.
+5. If the clone fails but the project was readable, return reachable=true and cloned=false. Say why in note. The investigation then runs remotely.
 
 The clone is the one write this agent may perform.
 ${READ_ONLY}`;
 
-const ticketContext = (triage, repo, clonePath) => `
+const cloudwatchPrompt = (triage) => `
+Query AWS CloudWatch logs for errors related to JIRA ticket ${triage.key}.
+
+TICKET FACTS
+Summary: ${triage.summary}
+Component: ${triage.component || "unknown"}
+Environment: ${triage.environment || "unknown"}
+Reported: ${triage.reportedDate || "unknown"}
+Errors: ${(triage.errors || []).join(" | ")}
+
+STEPS
+1. Check AWS CLI is available: aws --version
+   If unavailable, return queried=false and put the reason in error. Stop here.
+2. Infer candidate log groups from the component and environment fields.
+   Common patterns: /aws/lambda/<service>, /aws/ecs/<service>, /ecs/<env>/<service>, /aws/apigateway/<api>.
+   Run: aws logs describe-log-groups --log-group-name-prefix /<component-hint>
+   Try at most three prefixes. Record the groups you find in logGroups.
+3. Set the time window: from 24 hours before reportedDate to 48 hours after reportedDate.
+   Convert to epoch milliseconds for --start-time and --end-time.
+4. For each log group found, run:
+   aws logs filter-log-events --log-group-name <group> --start-time <ms> --end-time <ms> \\
+     --filter-pattern "<error keyword from ticket>"
+   Use the most specific error keyword from the ticket errors field.
+   Repeat with a broader keyword if the first query returns nothing.
+5. For each matching error pattern found, record: pattern, count, firstSeen, lastSeen, sampleMessage (one verbatim log line).
+6. Set timeWindow to the ISO range you queried.
+7. Record dead ends, inaccessible log groups, and access errors in notes.
+
+RULES
+- Never write to CloudWatch. Use only aws logs describe-* and aws logs filter-log-events.
+- Never modify, create, or delete any AWS resource.
+- If you have no AWS credentials or the region is unset, return queried=false with the reason in error.
+- An empty result is valid: return queried=true with an empty errorPatterns array and a note explaining what was tried.
+${READ_ONLY}`;
+
+const cloudwatchReportPrompt = (ticket, triage, cloudwatch) => `
+Write the log-evidence report for ${ticket}.
+
+1. Run: pwd
+   That is the invoking directory.
+2. Write to <cwd>/reports/${ticket}-root-cause.md with the Write tool. It creates parent directories. Never use shell redirection.
+3. Return that absolute path in reportPath.
+
+TICKET
+Summary: ${triage.summary}
+Reported: ${triage.reportedDate || "unknown"}
+Symptoms: ${(triage.symptoms || []).join("; ")}
+Errors: ${(triage.errors || []).join(" | ")}
+Component: ${triage.component || "unknown"}
+Environment: ${triage.environment || "unknown"}
+Repository named on the ticket: ${triage.repo || "none"}
+Links: ${(triage.links || []).join(", ")}
+
+CLOUDWATCH FINDINGS
+Queried: ${cloudwatch ? cloudwatch.queried : false}
+${cloudwatch && cloudwatch.queried && cloudwatch.errorPatterns && cloudwatch.errorPatterns.length > 0
+  ? `Time window: ${cloudwatch.timeWindow || "unknown"}
+Log groups: ${(cloudwatch.logGroups || []).join(", ")}
+Error patterns found:
+${cloudwatch.errorPatterns.map((p) => `  - "${p.pattern}": ${p.count} events (${p.firstSeen || "?"} – ${p.lastSeen || "?"}), sample: ${p.sampleMessage || "(none)"}`).join("\n")}`
+  : cloudwatch && cloudwatch.error ? `Not available: ${cloudwatch.error}`
+  : cloudwatch ? "No matching error patterns found."
+  : "The CloudWatch agent returned nothing."}
+Notes: ${cloudwatch ? cloudwatch.notes || "none" : "none"}
+
+SECTIONS, in this order:
+1. Bug summary. State the reported symptom.
+2. CloudWatch findings. Give the time window, the log groups queried, and each error pattern with its count and a verbatim sample line. State "Not available" and the reason when the query did not run.
+3. Reading of the evidence. Say what the log pattern shows about the failure. Say "No log evidence" when nothing matched. Never guess at code-level causes.
+4. Not investigated. State plainly that this run stopped after the CloudWatch step. No repository was resolved, no code was read, and no root cause was verified.
+5. Next steps. List what a full investigation must check next.
+
+Set rootCauseFound=false unless the logs alone prove the cause.
+Put the strongest reading of the logs in topCause. Put an honest confidence in confidence.
+
+PROSE STYLE
+Try to load the ste_writing skill with the Skill tool. Follow this fallback if it is unavailable:
+- Write short sentences. Use 20 words at most.
+- Use active voice.
+- Give one instruction per sentence.
+- Remove filler words.
+- Use concrete nouns.
+
+The report is the only file you may write.
+${READ_ONLY}`;
+
+const ticketContext = (triage, repo, clonePath, cloudwatch) => `
 TICKET FACTS
 Ticket: ${triage.key || "unknown"}
 Reported: ${triage.reportedDate || "unknown"}
@@ -149,6 +270,16 @@ Component: ${triage.component || "unknown"}
 Environment: ${triage.environment || "unknown"}
 Repository: ${repo}
 Local clone: ${clonePath || "no local clone — investigate remotely via glab api / glab mr / glab ci with -R " + repo}
+${cloudwatch && cloudwatch.queried && cloudwatch.errorPatterns && cloudwatch.errorPatterns.length > 0
+  ? `CLOUDWATCH FINDINGS (time window: ${cloudwatch.timeWindow || "unknown"})
+Log groups queried: ${(cloudwatch.logGroups || []).join(", ")}
+Error patterns:
+${cloudwatch.errorPatterns.map((p) => `  - "${p.pattern}" — ${p.count} events, first: ${p.firstSeen || "?"}, last: ${p.lastSeen || "?"}
+    Sample: ${p.sampleMessage || "(none)"}`).join("\n")}
+Notes: ${cloudwatch.notes || "none"}`
+  : cloudwatch && !cloudwatch.queried
+  ? `CLOUDWATCH: not queried — ${cloudwatch.error || "no reason given"}`
+  : "CLOUDWATCH: queried but no matching error patterns found"}
 `;
 
 const lensMissions = {
@@ -172,9 +303,9 @@ Treat the build and the environment as suspects.
 - Cite pipeline IDs and job names.`
 };
 
-const lensPrompt = (lens, triage, repo, clonePath) => `
+const lensPrompt = (lens, triage, repo, clonePath, cloudwatch) => `
 You are the "${lens}" investigator for a bug in GitLab project ${repo}.
-${ticketContext(triage, repo, clonePath)}
+${ticketContext(triage, repo, clonePath, cloudwatch)}
 YOUR MISSION
 ${lensMissions[lens]}
 
@@ -198,12 +329,12 @@ Consolidate the list. Work from this text alone. You need no tools.
 4. Return at most 4 candidates, strongest first. Drop the rest.
 ${READ_ONLY}`;
 
-const skepticPrompt = (candidate, triage, repo, clonePath) => `
+const skepticPrompt = (candidate, triage, repo, clonePath, cloudwatch) => `
 Your job is to REFUTE this candidate root cause. Assume it is wrong and hunt for disconfirming evidence.
 
 CANDIDATE
 ${JSON.stringify(candidate, null, 2)}
-${ticketContext(triage, repo, clonePath)}
+${ticketContext(triage, repo, clonePath, cloudwatch)}
 CHECKLIST
 1. Timeline. Did the change ship before the symptom started? A change that landed after the first report cannot be the cause.
 2. Reachability. Is that code path really reached in the reported scenario? Check callers, feature flags, configuration, and dead branches.
@@ -216,7 +347,7 @@ VERDICT
 - inconclusive: you could not reach the evidence you needed. Say what was missing.
 ${READ_ONLY}`;
 
-const reportPrompt = (ticket, triage, repo, findings, clonePath) => `
+const reportPrompt = (ticket, triage, repo, findings, clonePath, cloudwatch) => `
 Write the root-cause report for ${ticket}.
 
 1. Run: pwd
@@ -231,17 +362,28 @@ Environment: ${triage.environment || "unknown"}
 Repository: ${repo}
 Links: ${(triage.links || []).join(", ")}
 Local clone, read-only, to verify citations: ${clonePath || "none"}
+${cloudwatch ? `
+CLOUDWATCH FINDINGS
+Queried: ${cloudwatch.queried}
+${cloudwatch.queried && cloudwatch.errorPatterns && cloudwatch.errorPatterns.length > 0
+  ? `Time window: ${cloudwatch.timeWindow || "unknown"}
+Log groups: ${(cloudwatch.logGroups || []).join(", ")}
+Error patterns found:
+${cloudwatch.errorPatterns.map((p) => `  - "${p.pattern}": ${p.count} events (${p.firstSeen || "?"} – ${p.lastSeen || "?"}), sample: ${p.sampleMessage || "(none)"}`).join("\n")}`
+  : cloudwatch.error ? `Not available: ${cloudwatch.error}` : "No matching error patterns found."}
+Notes: ${cloudwatch.notes || "none"}` : "CLOUDWATCH: not run"}
 
 VERIFIED FINDINGS
 ${JSON.stringify(findings, null, 2)}
 
 SECTIONS, in this order:
 1. Bug summary. State the reported symptom.
-2. Evidence gathered. List what was inspected: commits, merge requests, pipelines, files.
-3. Probable root cause. Include only candidates with verdict "confirmed". If none is confirmed, give the strongest inconclusive candidate and label it "Unconfirmed". Point at exact commit SHAs, merge request IDs, and file:line locations.
-4. Confidence. Give high, medium, or low, plus one line of justification.
-5. Suggested fix. Give the approach and the files to change. State explicitly that no code changes were made.
-6. What was ruled out. List each refuted candidate and the evidence that refuted it.
+2. CloudWatch findings. Summarise the log evidence: time window, log groups queried, error patterns found. State "Not available" if CloudWatch was not queried.
+3. Evidence gathered. List what was inspected: commits, merge requests, pipelines, files.
+4. Probable root cause. Include only candidates with verdict "confirmed". If none is confirmed, give the strongest inconclusive candidate and label it "Unconfirmed". Point at exact commit SHAs, merge request IDs, and file:line locations.
+5. Confidence. Give high, medium, or low, plus one line of justification.
+6. Suggested fix. Give the approach and the files to change. State explicitly that no code changes were made.
+7. What was ruled out. List each refuted candidate and the evidence that refuted it.
 
 PROSE STYLE
 Try to load the ste_writing skill with the Skill tool. Follow this fallback if it is unavailable:
@@ -262,6 +404,24 @@ const triage = await agent(triagePrompt(ticket), { label: "triage", phase: "Tria
 if (!triage) return { status: "triage_failed", ticket };
 if (!triage.fetched) return { status: "ticket_unavailable", ticket, error: triage.error };
 
+phase("CloudWatch");
+const cloudwatch = await agent(cloudwatchPrompt(triage), { label: "cloudwatch", phase: "CloudWatch", schema: cloudwatchSchema, effort: "medium" });
+
+// EARLY STOP: this run ends at the CloudWatch step and reports on the log evidence alone.
+// Everything below this return is the full GitLab investigation. Delete these lines to restore it.
+phase("Report");
+const cwReport = await agent(cloudwatchReportPrompt(ticket, triage, cloudwatch), { label: "report", phase: "Report", schema: reportSchema, effort: "medium" });
+if (!cwReport) return { status: "report_failed", ticket, cloudwatch };
+return {
+  status: "cloudwatch_only",
+  ticket,
+  reportPath: cwReport.reportPath,
+  queried: cloudwatch ? cloudwatch.queried : false,
+  patternCount: cloudwatch && cloudwatch.errorPatterns ? cloudwatch.errorPatterns.length : 0,
+  topCause: cwReport.topCause,
+  confidence: cwReport.confidence
+};
+
 phase("Resolve repo");
 const repo = input.repo || triage.repo;
 if (!repo) return { status: "needs_repo", ticket, triage };
@@ -272,7 +432,7 @@ const clonePath = prep && prep.cloned ? prep.clonePath : null;
 phase("Investigate");
 const lenses = ["recent-changes", "code-path", "pipeline-ci"];
 const lensResults = (await parallel(lenses.map((lens) => () =>
-  agent(lensPrompt(lens, triage, repo, clonePath), { label: "lens:" + lens, phase: "Investigate", schema: lensSchema, effort: "medium", agentType: "Explore" })
+  agent(lensPrompt(lens, triage, repo, clonePath, cloudwatch), { label: "lens:" + lens, phase: "Investigate", schema: lensSchema, effort: "medium", agentType: "Explore" })
 ))).filter(Boolean);
 if (lensResults.length === 0) return { status: "investigation_failed", ticket, repo };
 const rawCandidates = lensResults.flatMap((r) => r.candidates).filter(Boolean);
@@ -287,12 +447,12 @@ phase("Verify");
 // Do NOT null-filter skeptic results: parallel() preserves order, and a dead
 // skeptic must map to "inconclusive" in place so verdicts zip onto candidates by index.
 const verdicts = candidates.length === 0 ? [] : await parallel(candidates.map((c, i) => () =>
-  agent(skepticPrompt(c, triage, repo, clonePath), { label: "skeptic:" + (i + 1), phase: "Verify", schema: verdictSchema, effort: "medium", agentType: "Explore" })
+  agent(skepticPrompt(c, triage, repo, clonePath, cloudwatch), { label: "skeptic:" + (i + 1), phase: "Verify", schema: verdictSchema, effort: "medium", agentType: "Explore" })
 ));
 const findings = candidates.map((c, i) => ({ ...c, verdict: verdicts[i] || { verdict: "inconclusive", counterEvidence: [], reasoning: "verifier unavailable", confidence: "low" } }));
 
 phase("Report");
-const report = await agent(reportPrompt(ticket, triage, repo, findings, clonePath), { label: "report", phase: "Report", schema: reportSchema, effort: "medium" });
+const report = await agent(reportPrompt(ticket, triage, repo, findings, clonePath, cloudwatch), { label: "report", phase: "Report", schema: reportSchema, effort: "medium" });
 if (!report) return { status: "report_failed", ticket, repo, findings };
 const anyConfirmed = findings.some((f) => f.verdict.verdict === "confirmed");
 const allRefuted = findings.length > 0 && findings.every((f) => f.verdict.verdict === "refuted");
