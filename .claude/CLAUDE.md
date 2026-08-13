@@ -50,7 +50,8 @@ Never perform any of the following tasks without human approval:
 
 ### Unix Philosophy
 
-- Write each program, module, and function to do one thing well.
+When implementing code, ALWAYS use these guiding principles
+- Write each program, module, and/or function to do one thing well.
 - Design components that compose. The output of one component must be usable as the input of another.
 - Use plain text for data and configuration. Text is the universal interface.
 - Make tools scriptable. Do not build captive user interfaces.
