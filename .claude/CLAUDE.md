@@ -34,7 +34,7 @@ For each of user permission request, offer only three options as a choice-select
 After completing a unit of work: update the repo journal entry, then commit with a scoped conventional-commit message covering only the files for that change. Confirm the working tree is clean afterwards. If `git` reports 'Another git process seems to be running' (index.lock from my zsh prompt), retry once then fall back to plain `rm`/`mv` rather than looping on git.
 
 ## Secrets and sensitive files
-Before any commit or `.gitignore` change, scan staged/tracked files for credentials, API keys and anything under `_documents_/`. Never commit plaintext secrets; route them through sops-nix. Flag any leaked key immediately rather than continuing.
+Before any commit or `.gitignore` change, scan staged/tracked files for credentials, API keys. Never commit plaintext secrets; route them through sops-nix. Flag any leaked key immediately rather than continuing.
 
 ## DO NOT
 
