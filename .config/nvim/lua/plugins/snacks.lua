@@ -25,17 +25,16 @@ return {
 				-- },
 				{ section = "keys", gap = 1, padding = 1 },
 				{ pane = 2, icon = " ", title = "Recent Files", section = "recent_files", indent = 2, padding = 1 },
-				{ pane = 2, icon = " ", title = "Projects", section = "projects", indent = 2, padding = 1 },
 				{
 					pane = 2,
-					icon = " ",
-					title = "Git Status",
+					icon = "󰄴 ",
+					title = "Tasks",
 					section = "terminal",
 					enabled = function()
-						return Snacks.git.get_root() ~= nil
+						return vim.fn.filereadable("todo.txt") == 1
 					end,
-					cmd = "git status --short --branch --renames",
-					height = 5,
+					cmd = vim.fn.stdpath('config') .. '/scripts/tuxedo-dashboard.sh',
+					height = 12,
 					padding = 1,
 					ttl = 5 * 60,
 					indent = 3,

@@ -1,21 +1,19 @@
 # Journal Summary
 
-## 2026-05-13 — Add get_sorted_data Neovim Python Snippet
+A running summary of changes to this repository, newest first.
 
-Added a new Python snippet `get_sorted_data` to `.config/nvim/snippets/python.json` with prefix `sorted_data`. The snippet:
-- Finds files matching a regex pattern in a directory
-- Sorts them (descending by default) and selects by index
-- Has fixed docstring Args (user's original had mismatched parameters)
-- Includes doctests using `Path.touch()` demonstrating sorting behavior with verifiable expected outputs
+## 2026-09-06
 
-## 2026-04-28 — NixOS Server Neovim Startup Errors (4 fixes)
+- Compared `release/2026-W37` against `main` (26 commits, 27 files) and documented the branch. Added the `## [3.1.0] - 2026-09-06` section to `CHANGELOG.md`. Updated `README.md`: the `.claude/skills/` and `.claude/workflows/` entries, the `scripts/` entry in the Neovim tree, and a new `### Espanso - Date Snippets` section. See [2026-09-06.md](2026-09-06.md).
 
-Debugged and fixed four issues on the NixOS server:
-1. **image.nvim luarocks failure** — disabled image feature in `snacks.lua` and added `rocks = { enabled = false }` to `lazy.lua` to prevent luarocks builds entirely.
-2. **`make ts` API mismatch** — updated `Makefile` `ts` target to use the new nvim-treesitter `main` branch API: `require('nvim-treesitter').update(nil, {...}):wait()`.
-3. **obsidian.nvim workspace error** — uncommented the `cond = vim.fn.isdirectory(".obsidian") == 1` guard in `obsidian.lua` so the plugin only loads inside a vault.
-4. **Treesitter `tab` node query error on `:`** — added `cmdline.format` override in `noice.lua` to disable treesitter parsing for the cmdline, bypassing a Neovim 0.12.1 query/parser mismatch.
+## 2026-08-14
 
-## 2026-04-27 — Neovim Tree-sitter Nix parser mismatch
+- Added an `AWS login` phase to the `debug-ticket` workflow in `.claude/workflows/debug-ticket.js`, between Triage and CloudWatch. It maps the ticket environment to one of the eight profiles in `~/.aws/config`, tests the session with `aws sts get-caller-identity`, and runs `aws sso login --profile <env>` only when needed. A failed login stops the workflow with `status: "aws_login_required"` rather than querying CloudWatch with dead credentials. Added five AWS permissions to `.claude/settings.local.json`. See [2026-08-14.md](2026-08-14.md).
 
-Debugged a `noice.nvim` query error (`Invalid field name "operator"`) appearing when opening `.nix` files. Root cause: `lazy.nvim` updated `nvim-treesitter` but did not recompile the `nix.so` parser, leaving a grammar/query version mismatch. `:TSUpdate nix` falsely reported "up-to-date". Fixed by running `:TSInstall! nix` to force recompilation. No repository files were modified.
+## 2026-08-13
+
+- Added CloudWatch as the second phase of the `debug-ticket` workflow in `.claude/workflows/debug-ticket.js`. The new phase queries `aws logs filter-log-events` using triage facts (component, environment, errors, reported date) and threads findings through all downstream agents (lenses, skeptics, report). The phase is non-blocking: missing AWS credentials are recorded and the workflow continues. See [2026-13-08.md](2026-13-08.md).
+
+## 2026-08-12
+
+- Added a `### Unix Philosophy` subsection to `## Code Development Standards` in `.claude/CLAUDE.md`. Eight rules cover composition, plain text, scriptability, silence, loud failure, prototyping, and simplicity. The file is staged in git. See [2026-08-12.md](2026-08-12.md).

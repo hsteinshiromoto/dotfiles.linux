@@ -30,12 +30,21 @@ For each of user permission request, offer only three options as a choice-select
 2. No (N).
 3. Something else: only here the user is prompted to type in text that will run a small change such execute a command with a different flag option.
 
+## Commit and journal conventions
+After completing a unit of work: update the repo journal entry, then commit with a scoped conventional-commit message covering only the files for that change. Confirm the working tree is clean afterwards. If `git` reports 'Another git process seems to be running' (index.lock from my zsh prompt), retry once then fall back to plain `rm`/`mv` rather than looping on git.
+
+## Secrets and sensitive files
+Before any commit or `.gitignore` change, scan staged/tracked files for credentials, API keys. Never commit plaintext secrets; route them through sops-nix. Flag any leaked key immediately rather than continuing.
+
 ## DO NOT
 
 Never perform any of the following tasks without human approval:
 1. Modify any file.
 2. Add any file to git staging area or commit.
 3. Run shell commands that execute tests or build steps without first confirming the host OS is compatible with the project's test environment (e.g., NixOS tests cannot run from a macOS host).
+
+## Don't guess API or config syntax
+If you are unsure of the exact syntax for a third-party DSL, config schema or plugin API (Obsidian Bases formulas, Forgejo/Gitea options, Opencode plugin API, Ghostreader prompts, hledger CSV rules), fetch the official docs FIRST with WebFetch/WebSearch. Do not invent function or option names and iterate on errors.
 
 ## Code Development Standards
 
@@ -47,6 +56,18 @@ Never perform any of the following tasks without human approval:
 - Prefer orchestration over inheritance.
 - When you finish your implementation run `/sanity-check`
 - For every project that you are making changes. For each day, create a file of the format `YYYY-MM-DD.md` containing all changes done to the repository on that day.
+
+### Unix Philosophy
+
+When implementing code, ALWAYS use these guiding principles
+- Write each program, module, and/or function to do one thing well.
+- Design components that compose. The output of one component must be usable as the input of another.
+- Use plain text for data and configuration. Text is the universal interface.
+- Make tools scriptable. Do not build captive user interfaces.
+- Follow the rule of silence: print nothing when there is nothing surprising to report.
+- Fail loudly. When a program fails, stop early and show a clear error message.
+- Build a small working version first. Improve it in small steps.
+- Choose simplicity over cleverness. Add complexity only when measurements prove the need.
 
 ### Python
 
@@ -75,8 +96,12 @@ Never perform any of the following tasks without human approval:
 
 ## Communication Style
 
-- Keep investigation and verification findings concise — use a table or bullet summary; avoid verbose multi-paragraph prose reports.
+Keep investigation and verification findings concise — use a table or bullet summary; avoid verbose multi-paragraph prose reports.
+You MUST USE the `ste_writing` skill, when writing prose (docs, READMEs, PR descriptions, error messages, release notes, comments). DO NOT USE when writing code.
 
 ## Finishing up
 
 When the user types `/quit`, `quit`, `/exit` or  `exit`, you run the command `journal/` BEFORE quitting.
+# graphify
+- **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
+When the user types `/graphify`, invoke the Skill tool with `skill: "graphify"` before doing anything else.

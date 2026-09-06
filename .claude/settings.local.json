@@ -1,18 +1,4 @@
 {
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash $HOME/dotfiles/.claude/hooks/handover.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
     "allow": [
       "mcp__serena__find_file",
@@ -42,7 +28,20 @@
       "Read(//Users/hsteinshiromoto/.config/hammerspoon/**)",
       "Read(//private/tmp/**)",
       "Bash(ioreg -p IOUSB -l)",
-      "Bash(system_profiler SPUSBDataType)"
+      "Bash(system_profiler SPUSBDataType)",
+      "Workflow(debug-ticket)",
+      "mcp__claude_ai_Atlassian__getAccessibleAtlassianResources",
+      "mcp__claude_ai_Atlassian__getJiraIssue",
+      "Read(//Users/hsteinshiromoto/.aws/**)",
+      "Read(//private/var/folders/sp/r8m85vq57cgghmxn853wnw2m0000gn/T/secrets.d/180/rendered/aws/**)",
+      "Bash(aws --version)",
+      "Bash(aws sso login --profile *)",
+      "Bash(aws sts get-caller-identity --profile *)",
+      "Bash(aws logs describe-log-groups *)",
+      "Bash(aws logs filter-log-events *)",
+      "Bash(git -C ~/dotfiles status --short .claude/)",
+      "Bash(git *)",
+      "Bash(python3 -m json.tool .claude/settings.local.json)"
     ]
   },
   "enableAllProjectMcpServers": true,
@@ -52,5 +51,19 @@
     "gitlab",
     "mcp-obsidian",
     "mcp-neovim-server"
-  ]
+  ],
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/dotfiles/.claude/hooks/handover.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
 }
