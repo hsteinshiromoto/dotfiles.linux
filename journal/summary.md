@@ -2,6 +2,10 @@
 
 A running summary of changes to this repository, newest first.
 
+## 2026-09-06
+
+- Compared `release/2026-W37` against `main` (26 commits, 27 files) and documented the branch. Added the `## [3.1.0] - 2026-09-06` section to `CHANGELOG.md`. Updated `README.md`: the `.claude/skills/` and `.claude/workflows/` entries, the `scripts/` entry in the Neovim tree, and a new `### Espanso - Date Snippets` section. See [2026-09-06.md](2026-09-06.md).
+
 ## 2026-08-14
 
 - Added an `AWS login` phase to the `debug-ticket` workflow in `.claude/workflows/debug-ticket.js`, between Triage and CloudWatch. It maps the ticket environment to one of the eight profiles in `~/.aws/config`, tests the session with `aws sts get-caller-identity`, and runs `aws sso login --profile <env>` only when needed. A failed login stops the workflow with `status: "aws_login_required"` rather than querying CloudWatch with dead credentials. Added five AWS permissions to `.claude/settings.local.json`. See [2026-08-14.md](2026-08-14.md).

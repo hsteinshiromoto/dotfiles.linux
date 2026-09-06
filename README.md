@@ -12,6 +12,8 @@ The structure of this repository mirrors the `$HOME` directory structure exactly
 ### Directory Overview
 
 - **`.claude/`** - Claude Code configuration and project-specific settings
+  - `skills/` - Claude skills (`graphify`, `ste_writing`)
+  - `workflows/` - Claude workflow scripts (`debug-ticket`), see `.claude/workflows/README.md`
 - **`.config/`** - Cross-platform application configurations
   - `amnesia/` - Terminal session persistence
   - `atuin/` - Shell history manager configuration
@@ -53,6 +55,7 @@ The Neovim configuration (`~/.config/nvim/`) uses a modular Lua-based structure:
 ```
 nvim/
 ├── lsp/                    # LSP server configurations
+├── scripts/                # Shell scripts called by the config (dashboard panes)
 └── lua/
     ├── config/             # Core Neovim configurations
     ├── core/               # Core functionality
@@ -192,6 +195,12 @@ espanso restart
 ```
 
 **Note**: The LaunchAgent plist file is managed by Espanso itself and should not be added to this dotfiles repo. Only the config files in `.config/espanso/` are managed by stow.
+
+### Espanso - Date Snippets
+
+The file `.config/espanso/match/dates.yml` holds offset-date matches. Type an offset such as
+`-18d`, `+2w`, `-3m`, or `+5y`. Espanso replaces it with the date, in the format of one target:
+Obsidian, bash, PowerShell, Python, or JavaScript.
 
 ## Favorite Commands
 

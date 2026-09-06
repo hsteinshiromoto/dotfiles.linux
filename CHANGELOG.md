@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-09-06
+
+### Added
+
+- Claude skill `graphify`: turns any input into a knowledge graph (`.claude/skills/graphify/`)
+- Claude skill `ste_writing`: rewrites prose into ASD-STE100 Simplified Technical English (`.claude/skills/ste_writing/`)
+- Claude workflow `debug-ticket` (`.claude/workflows/debug-ticket.js`): triage of a JIRA bug, AWS SSO login, CloudWatch log query, and a read-only GitLab investigation that writes `reports/<TICKET>-root-cause.md`
+- `.claude/workflows/README.md`: how to run the workflows and how to stow the directory
+- CLAUDE.md sections: Unix Philosophy, commit and journal conventions, secrets and sensitive files, and a rule to read official docs before you use a third-party API or config syntax
+- Espanso matches `.config/espanso/match/dates.yml`: an offset such as `-18d` or `+2w` expands to a date, in the format of Obsidian, bash, PowerShell, Python, or JavaScript
+- Neovim dashboard script `.config/nvim/scripts/tuxedo-dashboard.sh`: renders the tuxedo task list from `todo.txt` in the tuxedo TUI colors
+- Tokyo Night themes for atuin (`.config/atuin/themes/tokyonight.toml`), bat, and kitty (`.config/kitty/tokyonight_night.conf`)
+- Journal entries for 2026-08-12, 2026-08-13, and 2026-08-14
+
+### Changed
+
+- Neovim dashboard: the Tasks pane replaces the Projects and Git Status panes. The pane shows only when `todo.txt` exists.
+- Tokyo Night theme applied to atuin, bat, btop, kitty, code-server, and VS Code
+- Vim: Tokyo Night replaces gruvbox, with `termguicolors` and a matching lightline theme
+- Tmux: `allow-passthrough on`, plus `COLORTERM` and `TERM_PROGRAM` set for terminal image rendering
+- Lazygit: the `pagers` key becomes `diffRenderers` to match the current schema
+- Neovim plugin versions updated in `lazy-lock.json`
+- New AWS and git permissions in `.claude/settings.local.json`
+
 ## [3.0.1] - 2026-07-06
 
 ### Added
