@@ -1,5 +1,9 @@
 # Tokyo Night theme for atuin.
 #
+# Layout: atuin 18.15.2 reads the colours from a [colors] table under a [theme]
+# header. Flat top-level keys (Base = "...") are found but yield no colours, and
+# the TUI then renders with no colour at all. Keep the two tables below.
+#
 # atuin only supports the fixed set of CSS/SVG named colors from the `palette`
 # crate (https://ogeon.github.io/docs/palette/master/palette/named/index.html),
 # not arbitrary hex codes, so this maps each Tokyo Night role to its closest
@@ -11,6 +15,12 @@
 #   Important   #bb9af7 (purple)       -> mediumpurple
 #   AlertWarn   #e0af68 (yellow)       -> sandybrown
 #   AlertError  #f7768e (red)          -> lightcoral
+
+[theme]
+name = "tokyonight"
+parent = "default"
+
+[colors]
 Base = "lightsteelblue"
 Annotation = "slategray"
 AlertInfo = "cornflowerblue"
