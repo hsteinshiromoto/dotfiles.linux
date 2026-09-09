@@ -319,6 +319,9 @@ alias drm='docker rm $(docker ps -a | fzf | awk "{ print $1 }")'
 alias ds='docker stop $(docker ps -a | fzf | awk "{ print $1 }")'
 alias drmi='docker rmi $(docker images | fzf | awk "{print $3}")'
 
+# GPG Aliases
+alias ge='gpg --encrypt --default-recipient-self'
+
 alias nix_template='nix flake init -t github:hsteinshiromoto/nix.template'
 # ---
 # Configuration: Pyenv
